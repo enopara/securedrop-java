@@ -1,0 +1,17 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: securedrop-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: securedrop
+      MYSQL_USER: securedrop_user
+      MYSQL_PASSWORD: securedrop_pass
+      MYSQL_ROOT_PASSWORD: root_pass
+    ports:
+      - "3307:3306"
+    volumes:
+      - securedrop_mysql_data:/var/lib/mysql
+
+volumes:
+  securedrop_mysql_data:
