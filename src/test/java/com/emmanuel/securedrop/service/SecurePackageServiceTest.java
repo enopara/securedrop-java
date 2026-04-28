@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import com.emmanuel.securedrop.crypto.CryptoPolicy;
+import com.emmanuel.securedrop.crypto.HybridCryptoService;
 import com.emmanuel.securedrop.domain.AppUser;
 import com.emmanuel.securedrop.domain.SecurePackage;
 import com.emmanuel.securedrop.repository.AppUserRepository;
@@ -42,7 +44,11 @@ class SecurePackageServiceTest {
 	@BeforeEach
 	void setUp() {
 		userService = new UserService(appUserRepository, passwordEncoder);
-		securePackageService = new SecurePackageService(securePackageRepository, appUserRepository, userService);
+		securePackageService = new SecurePackageService(
+				securePackageRepository,
+				appUserRepository,
+				userService,
+				new HybridCryptoService(new CryptoPolicy("secure")));
 
 		when(appUserRepository.save(any(AppUser.class))).thenAnswer(invocation -> {
 			AppUser user = invocation.getArgument(0);

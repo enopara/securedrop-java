@@ -1,8 +1,7 @@
 package com.emmanuel.securedrop.service;
 
-import com.emmanuel.securedrop.crypto.AesGcmCryptoUtil;
+import com.emmanuel.securedrop.crypto.HybridCryptoService;
 import com.emmanuel.securedrop.crypto.KeyPemUtil;
-import com.emmanuel.securedrop.crypto.RsaOaepKeyWrapUtil;
 import com.emmanuel.securedrop.domain.AppUser;
 import com.emmanuel.securedrop.domain.SecurePackage;
 import com.emmanuel.securedrop.repository.AppUserRepository;
@@ -16,7 +15,6 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
-import javax.crypto.SecretKey;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,14 +24,17 @@ public class SecurePackageService {
 	private final SecurePackageRepository securePackageRepository;
 	private final AppUserRepository appUserRepository;
 	private final UserService userService;
+	private final HybridCryptoService hybridCryptoService;
 
 	public SecurePackageService(
 			SecurePackageRepository securePackageRepository,
 			AppUserRepository appUserRepository,
-			UserService userService) {
+			UserService userService,
+			HybridCryptoService hybridCryptoService) {
 		this.securePackageRepository = securePackageRepository;
 		this.appUserRepository = appUserRepository;
 		this.userService = userService;
+		this.hybridCryptoService = hybridCryptoService;
 	}
 
 	@Transactional
@@ -47,21 +48,21 @@ public class SecurePackageService {
 
 		try {
 			PublicKey recipientPublicKey = KeyPemUtil.publicKeyFromPem(recipient.getPublicKeyPem());
-			SecretKey aesKey = AesGcmCryptoUtil.generateKey();
-			AesGcmCryptoUtil.EncryptedPayload encryptedPayload = AesGcmCryptoUtil.encrypt(
+			HybridCryptoService.EncryptedPackage encryptedPackage = hybridCryptoService.encryptForRecipient(
 					plaintextMessage.getBytes(StandardCharsets.UTF_8),
-					aesKey);
-			byte[] wrappedAesKey = RsaOaepKeyWrapUtil.wrapAesKey(aesKey, recipientPublicKey);
+					recipientPublicKey);
 
 			SecurePackage securePackage = SecurePackage.textMessage(
 					sender,
 					recipient,
-					encode(encryptedPayload.ciphertext()),
-					encode(encryptedPayload.iv()),
-					encode(wrappedAesKey),
-					sha256Hex(encryptedPayload.ciphertext()));
+					encode(encryptedPackage.ciphertext()),
+					encode(encryptedPackage.iv()),
+					encode(encryptedPackage.wrappedAesKey()),
+					sha256Hex(encryptedPackage.ciphertext()));
 
-			return PackageReceipt.from(securePackageRepository.save(securePackage));
+			return PackageReceipt.from(
+					securePackageRepository.save(securePackage),
+					hybridCryptoService.activeMode().propertyValue());
 		}
 		catch (GeneralSecurityException ex) {
 			throw new IllegalStateException("Could not encrypt secure package", ex);
@@ -79,21 +80,22 @@ public class SecurePackageService {
 
 		try {
 			PrivateKey recipientPrivateKey = userService.unlockPrivateKey(securePackage.getRecipient(), recipientPassword);
-			SecretKey aesKey = RsaOaepKeyWrapUtil.unwrapAesKey(
-					decode(securePackage.getEncryptedFileKey()),
-					recipientPrivateKey);
-			byte[] plaintext = AesGcmCryptoUtil.decrypt(
-					new AesGcmCryptoUtil.EncryptedPayload(
+			byte[] plaintext = hybridCryptoService.decryptForRecipient(
+					new HybridCryptoService.EncryptedPackage(
 							decode(securePackage.getMessageNonce()),
-							decode(securePackage.getEncryptedMessage())),
-					aesKey);
+							decode(securePackage.getEncryptedMessage()),
+							decode(securePackage.getEncryptedFileKey()),
+							hybridCryptoService.activeMode(),
+							"not-exposed"),
+					recipientPrivateKey);
 
 			return new ReadPackage(
 					securePackage.getId(),
 					securePackage.getSender().getUsername(),
 					securePackage.getRecipient().getUsername(),
 					new String(plaintext, StandardCharsets.UTF_8),
-					securePackage.getCreatedAt());
+					securePackage.getCreatedAt(),
+					hybridCryptoService.activeMode().propertyValue());
 		}
 		catch (GeneralSecurityException ex) {
 			throw new IllegalStateException("Could not decrypt secure package", ex);
@@ -130,14 +132,20 @@ public class SecurePackageService {
 		return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
 	}
 
-	public record PackageReceipt(Long id, String senderUsername, String recipientUsername, Instant createdAt) {
+	public record PackageReceipt(
+			Long id,
+			String senderUsername,
+			String recipientUsername,
+			Instant createdAt,
+			String cryptoMode) {
 
-		private static PackageReceipt from(SecurePackage securePackage) {
+		private static PackageReceipt from(SecurePackage securePackage, String cryptoMode) {
 			return new PackageReceipt(
 					securePackage.getId(),
 					securePackage.getSender().getUsername(),
 					securePackage.getRecipient().getUsername(),
-					securePackage.getCreatedAt());
+					securePackage.getCreatedAt(),
+					cryptoMode);
 		}
 	}
 
@@ -146,7 +154,8 @@ public class SecurePackageService {
 			String senderUsername,
 			String recipientUsername,
 			String plaintextMessage,
-			Instant createdAt) {
+			Instant createdAt,
+			String cryptoMode) {
 	}
 
 	public record PackageSummary(Long id, String senderUsername, String recipientUsername, Instant createdAt) {

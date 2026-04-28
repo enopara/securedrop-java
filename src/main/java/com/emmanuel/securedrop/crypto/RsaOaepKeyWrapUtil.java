@@ -14,6 +14,7 @@ public final class RsaOaepKeyWrapUtil {
 
 	private static final String AES = "AES";
 	private static final String RSA_OAEP_TRANSFORMATION = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
+	private static final String RSA_PKCS1_TRANSFORMATION = "RSA/ECB/PKCS1Padding";
 	private static final OAEPParameterSpec OAEP_SHA256_SPEC = new OAEPParameterSpec(
 			"SHA-256",
 			"MGF1",
@@ -33,6 +34,20 @@ public final class RsaOaepKeyWrapUtil {
 		Cipher cipher = Cipher.getInstance(RSA_OAEP_TRANSFORMATION);
 		cipher.init(Cipher.UNWRAP_MODE, privateKey, OAEP_SHA256_SPEC);
 		return (SecretKey) cipher.unwrap(wrappedAesKey, AES, Cipher.SECRET_KEY);
+	}
+
+	public static byte[] wrapAesKeyWithPkcs1Padding(SecretKey aesKey, PublicKey publicKey)
+			throws GeneralSecurityException {
+		Cipher cipher = Cipher.getInstance(RSA_PKCS1_TRANSFORMATION);
+		cipher.init(Cipher.ENCRYPT_MODE, publicKey);
+		return cipher.doFinal(aesKey.getEncoded());
+	}
+
+	public static SecretKey unwrapAesKeyWithPkcs1Padding(byte[] wrappedAesKey, PrivateKey privateKey)
+			throws GeneralSecurityException {
+		Cipher cipher = Cipher.getInstance(RSA_PKCS1_TRANSFORMATION);
+		cipher.init(Cipher.DECRYPT_MODE, privateKey);
+		return aesKeyFromBytes(cipher.doFinal(wrappedAesKey));
 	}
 
 	public static SecretKey aesKeyFromBytes(byte[] rawAesKey) {

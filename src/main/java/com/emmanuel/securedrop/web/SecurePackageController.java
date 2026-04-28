@@ -69,14 +69,16 @@ public class SecurePackageController {
 			Long id,
 			String senderUsername,
 			String recipientUsername,
-			Instant createdAt) {
+			Instant createdAt,
+			String cryptoMode) {
 
 		private static PackageReceiptResponse from(SecurePackageService.PackageReceipt receipt) {
 			return new PackageReceiptResponse(
 					receipt.id(),
 					receipt.senderUsername(),
 					receipt.recipientUsername(),
-					receipt.createdAt());
+					receipt.createdAt(),
+					receipt.cryptoMode());
 		}
 	}
 
@@ -85,7 +87,8 @@ public class SecurePackageController {
 			String senderUsername,
 			String recipientUsername,
 			String plaintextMessage,
-			Instant createdAt) {
+			Instant createdAt,
+			String cryptoMode) {
 
 		private static ReadPackageResponse from(SecurePackageService.ReadPackage readPackage) {
 			return new ReadPackageResponse(
@@ -93,7 +96,8 @@ public class SecurePackageController {
 					readPackage.senderUsername(),
 					readPackage.recipientUsername(),
 					readPackage.plaintextMessage(),
-					readPackage.createdAt());
+					readPackage.createdAt(),
+					readPackage.cryptoMode());
 		}
 	}
 
