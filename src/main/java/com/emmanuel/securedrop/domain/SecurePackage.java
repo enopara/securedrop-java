@@ -46,6 +46,31 @@ public class SecurePackage {
 	@Column(nullable = false, length = 64)
 	private String fileSha256;
 
+	@Column(columnDefinition = "TEXT")
+	private String encryptedMessage;
+
+	@Column(length = 64)
+	private String messageNonce;
+
 	@Column(nullable = false, updatable = false)
 	private Instant createdAt = Instant.now();
+
+	public static SecurePackage textMessage(
+			AppUser sender,
+			AppUser recipient,
+			String encryptedMessage,
+			String messageNonce,
+			String wrappedAesKey,
+			String ciphertextSha256) {
+		SecurePackage securePackage = new SecurePackage();
+		securePackage.setSender(sender);
+		securePackage.setRecipient(recipient);
+		securePackage.setOriginalFileName("message.txt");
+		securePackage.setStoredFilePath("database://text-message");
+		securePackage.setEncryptedFileKey(wrappedAesKey);
+		securePackage.setFileSha256(ciphertextSha256);
+		securePackage.setEncryptedMessage(encryptedMessage);
+		securePackage.setMessageNonce(messageNonce);
+		return securePackage;
+	}
 }

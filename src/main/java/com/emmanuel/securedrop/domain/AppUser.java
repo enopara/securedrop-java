@@ -40,4 +40,19 @@ public class AppUser {
 
 	@Column(nullable = false, updatable = false)
 	private Instant createdAt = Instant.now();
+
+	public static AppUser register(
+			String username,
+			String email,
+			String passwordHash,
+			String publicKeyPem,
+			String encryptedPrivateKeyPem) {
+		AppUser user = new AppUser();
+		user.setUsername(username);
+		user.setEmail(email);
+		user.setPasswordHash(passwordHash);
+		user.setPublicKeyPem(publicKeyPem);
+		user.setEncryptedPrivateKeyPem(encryptedPrivateKeyPem);
+		return user;
+	}
 }
