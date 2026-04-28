@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.time.Instant;
 import java.util.List;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,9 +25,9 @@ public class SecurePackageController {
 	}
 
 	@PostMapping("/send")
-	public PackageReceiptResponse send(@Valid @RequestBody SendPackageRequest request) {
+	public PackageReceiptResponse send(Authentication authentication, @Valid @RequestBody SendPackageRequest request) {
 		SecurePackageService.PackageReceipt receipt = securePackageService.sendTextPackage(
-				request.senderUsername(),
+				authenticatedUsername(authentication),
 				request.recipientUsername(),
 				request.message());
 		return PackageReceiptResponse.from(receipt);
@@ -35,25 +36,31 @@ public class SecurePackageController {
 	@GetMapping("/{id}")
 	public ReadPackageResponse read(
 			@PathVariable Long id,
-			@RequestHeader("X-Demo-Username") String recipientUsername,
+			Authentication authentication,
 			@RequestHeader("X-Demo-Password") String recipientPassword) {
 		SecurePackageService.ReadPackage readPackage = securePackageService.readTextPackage(
 				id,
-				recipientUsername,
+				authenticatedUsername(authentication),
 				recipientPassword);
 		return ReadPackageResponse.from(readPackage);
 	}
 
 	@GetMapping("/inbox/{username}")
-	public List<PackageSummaryResponse> inbox(@PathVariable String username) {
+	public List<PackageSummaryResponse> inbox(Authentication authentication, @PathVariable String username) {
+		if (!authenticatedUsername(authentication).equals(username)) {
+			throw new IllegalArgumentException("Authenticated user cannot read another user's inbox");
+		}
 		return securePackageService.inbox(username)
 				.stream()
 				.map(PackageSummaryResponse::from)
 				.toList();
 	}
 
+	private String authenticatedUsername(Authentication authentication) {
+		return authentication.getName();
+	}
+
 	public record SendPackageRequest(
-			@NotBlank String senderUsername,
 			@NotBlank String recipientUsername,
 			@NotBlank String message) {
 	}
